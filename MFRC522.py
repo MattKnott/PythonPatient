@@ -375,7 +375,7 @@ class MFRC522:
       ##print ("Sector "+str(blockAddr)+" : "+str(''.join(map(hex,backData)).replace("0x"," ")),end="")
       ##print (" | "+''.join(map(chr,backData)))
       returnString = ''.join(map(chr,backData))
-      print(returnString)
+      #print(returnString)
       return returnString
 
 

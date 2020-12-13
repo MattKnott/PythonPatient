@@ -1,6 +1,8 @@
 import signal
 import sys
 import os
+import time
+import copy
 import RPi.GPIO as GPIO
 import MFRC522
 
@@ -53,7 +55,7 @@ draw = ImageDraw.Draw(img)
 
 name = "Matthew Knott"
 # Load the fonts
-
+intuitive_font = ImageFont.truetype(Intuitive, int(18 * scale_size))
 hanken_medbold_font = ImageFont.truetype(HankenGroteskBold, int(12 * scale_size))
 hanken_bold_font = ImageFont.truetype(HankenGroteskBold, int(16 * scale_size))
 hanken_medium_font = ImageFont.truetype(HankenGroteskBold, int(8 * scale_size))
@@ -61,29 +63,31 @@ hanken_medium_font = ImageFont.truetype(HankenGroteskBold, int(8 * scale_size))
 y_top = int(inky_display.height * (5.0 / 10.0))
 y_bottom = y_top + int(inky_display.height * (4.0 / 10.0))
 
+def generateDemographics():
+    # Calculate the positioning and draw the "Hello" text
+    hello_w, hello_h = hanken_bold_font.getsize("Knott, Matthew A")
+    hello_x = 5
+    hello_y = 5
+    draw.text((hello_x, hello_y), "Knott, Matthew A", inky_display.BLACK, font=hanken_bold_font)
 
-# Calculate the positioning and draw the "Hello" text
+    # Calculate the positioning and draw the "my name is" text
+    mynameis_w, mynameis_h = hanken_medium_font.getsize("DOB: 05/08/1981   AGE: 39   SEX: M")
+    mynameis_x = 5
+    mynameis_y = hello_h + 5
+    draw.text((mynameis_x, mynameis_y), "DOB: 05/08/1981   AGE: 39   SEX: M", inky_display.BLACK, font=hanken_medium_font)
 
-hello_w, hello_h = hanken_bold_font.getsize("Knott, Matthew A")
-hello_x = 5
-hello_y = 5
-draw.text((hello_x, hello_y), "Knott, Matthew A", inky_display.BLACK, font=hanken_bold_font)
+    #Add Line
+    demographics_bottom = (mynameis_y + mynameis_h + 5)
+    demographics_line_end = (mynameis_y + mynameis_h + 8)
 
-# Calculate the positioning and draw the "my name is" text
+    for y in range(demographics_bottom, demographics_line_end):
+        for x in range(0, inky_display.width):
+            img.putpixel((x, y), inky_display.RED)
+    
+    return demographics_line_end
 
-mynameis_w, mynameis_h = hanken_medium_font.getsize("DOB: 05/08/1981   AGE: 39   SEX: M")
-mynameis_x = 5
-mynameis_y = hello_h + 5
-draw.text((mynameis_x, mynameis_y), "DOB: 05/08/1981   AGE: 39   SEX: M", inky_display.BLACK, font=hanken_medium_font)
 
-#Add Line
-demographics_bottom = (mynameis_y + mynameis_h + 5)
-demographics_line_end = (mynameis_y + mynameis_h + 8)
-
-for y in range(demographics_bottom, demographics_line_end):
-    for x in range(0, inky_display.width):
-        img.putpixel((x, y), inky_display.RED)
-
+demographics_line_end = generateDemographics()
 
 def generatePageTitle(titleText):
     pagetitle_w, pagetitle_h = hanken_medbold_font.getsize(titleText)
@@ -98,22 +102,48 @@ def generateIndexItem(indexText, yPos):
     draw.text((index1_x, index1_y), indexText, inky_display.BLACK, font=hanken_medium_font)
     return (yPos+index1_h)
 
-#Create landing page 
-generatePageTitle("Patient Summary")
+def showOverlayMessage(messageText):
+    y_start = int((inky_display.height-200)/2)
+    
+    for y in range(y_start, y_start+200):
+        for x in range(100, (inky_display.width-100)):
+            img.putpixel((x, y), inky_display.GREEN)
 
-index1Pos = generateIndexItem("1: Admission Details",demographics_line_end + 35)
-index2Pos = generateIndexItem("2: Risk Assessments",index1Pos + 5)
-index3Pos = generateIndexItem("3: Contact Details",index2Pos + 5)
+    welcome_w, welcome_h = hanken_bold_font.getsize("Welcome")
+    welcome_x = int((inky_display.width - welcome_w) / 2)
+    welcome_y = y_start + padding
+    draw.text((welcome_x, welcome_y), "Welcome", inky_display.WHITE, font=hanken_bold_font)
+
+    scanname_w, scanname_h = intuitive_font.getsize(messageText)
+    scanname_x = int((inky_display.width - scanname_w) / 2)
+    scanname_y = (welcome_y+welcome_h) + padding
+    draw.text((scanname_x, scanname_y), messageText, inky_display.WHITE, font=intuitive_font)
+
+    
+    inky_display.set_image(img)
+    inky_display.show()
+
+def generateLandingPage():
+    generateDemographics()
+
+    for y in range((demographics_line_end + 1), inky_display.height):
+        for x in range(0, inky_display.width):
+            img.putpixel((x, y), inky_display.WHITE)
+
+    #Create landing page 
+    generatePageTitle("Patient Summary")
+
+    index1Pos = generateIndexItem("1: Admission Details",demographics_line_end + 35)
+    index2Pos = generateIndexItem("2: Risk Assessments",index1Pos + 5)
+    index3Pos = generateIndexItem("3: Contact Details",index2Pos + 5)
+
+    # Display the completed name badge
+    inky_display.set_image(img)
+    inky_display.show()
 
 
-
-# Display the completed name badge
-inky_display.set_image(img)
-inky_display.show()
-
-
-
-
+#On First Run, Generate Landing Page
+generateLandingPage()
 
 
 # Gpio pins for each button (from top to bottom)
@@ -138,6 +168,9 @@ def handle_button(pin):
 
     if pin == 6:
         show_thing2()
+
+    if pin == 16:
+        generateLandingPage()
 
     if pin == 24:
         scanRFID()
@@ -208,17 +241,28 @@ def scanRFID():
             print("##Auth")
 			# Check if authenticated
             if status == mfrc.MI_OK:
+
+                isScan = False
                 userType = mfrc.MFRC522_Getstr(2)
                 clinName = mfrc.MFRC522_Getstr(1).replace("_", " ")
                 print("##Read done")
                 print(userType)
                 print(clinName)
+                
+                imgHold = copy.copy(img)
+
+                showOverlayMessage(clinName)
+                time.sleep(2)
+                inky_display.set_image(imgHold)
+                inky_display.show()
+
+
             else:
                 print ("Authentication error")
+                isScan = False
                 return 0
 
             print("Scan complete")
-            isScan = False
 
 # Finally, since button handlers don't require a "while True" loop,
 # we pause the script to prevent it exiting immediately.
