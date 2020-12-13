@@ -1,10 +1,23 @@
 import signal
+import sys
+import os
 import RPi.GPIO as GPIO
+import MFRC522
 
 from PIL import Image, ImageFont, ImageDraw
 from font_hanken_grotesk import HankenGroteskBold, HankenGroteskMedium
 from font_intuitive import Intuitive
 from inky.auto import auto
+
+
+#RFID Methods
+def dis_CardID(cardID):
+	print ("%2X%2X%2X%2X%2X>"%(cardID[0],cardID[1],cardID[2],cardID[3],cardID[4]),end="")
+
+#global variables
+clinName = ""
+
+
 
 #Initialise Display
 
@@ -126,6 +139,9 @@ def handle_button(pin):
     if pin == 6:
         show_thing2()
 
+    if pin == 24:
+        scanRFID()
+
 
 
 # Loop through out buttons and attach the "handle_button" function to each
@@ -165,7 +181,44 @@ def show_thing2():
     inky_display.show()
 
 
+def scanRFID():
+    print ("Scanning ... ")
+    mfrc = MFRC522.MFRC522()
+    isScan = True
+    while isScan:
+        # Scan for cards    
+        (status,TagType) = mfrc.MFRC522_Request(mfrc.PICC_REQIDL)
+        # If a card is found
+        if status == mfrc.MI_OK:
+            print ("Card detected")
+        # Get the UID of the card
+        (status,uid) = mfrc.MFRC522_Anticoll()				
+        # If we have the UID, continue
+        if status == mfrc.MI_OK:
+            print ("Card UID: "+ str(map(hex,uid)))
+            # Select the scanned tag
+            if mfrc.MFRC522_SelectTag(uid) == 0:
+                print ("MFRC522_SelectTag Failed!")
+            #if cmdloop(uid) < 1 :
+            # This is the default key for authentication
+            key = [0xFF,0xFF,0xFF,0xFF,0xFF,0xFF]
+            print("##Status")
+            # Authenticate
+            status = mfrc.MFRC522_Auth(mfrc.PICC_AUTHENT1A, 1, key, uid)
+            print("##Auth")
+			# Check if authenticated
+            if status == mfrc.MI_OK:
+                userType = mfrc.MFRC522_Getstr(2)
+                clinName = mfrc.MFRC522_Getstr(1).replace("_", " ")
+                print("##Read done")
+                print(userType)
+                print(clinName)
+            else:
+                print ("Authentication error")
+                return 0
 
+            print("Scan complete")
+            isScan = False
 
 # Finally, since button handlers don't require a "while True" loop,
 # we pause the script to prevent it exiting immediately.

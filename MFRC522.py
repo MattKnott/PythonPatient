@@ -7,7 +7,7 @@ import signal
 import time
   
 class MFRC522:
-  NRSTPD = 7
+  NRSTPD = 4
   
   MAX_LEN = 16
   
@@ -109,7 +109,7 @@ class MFRC522:
   
   def __init__(self, dev='/dev/spidev0.1', spd=1000000):
     spi.openSPI(device=dev,speed=spd)
-    GPIO.setmode(GPIO.BOARD)
+    #GPIO.setmode(GPIO.BOARD)
     GPIO.setup(self.NRSTPD, GPIO.OUT)
     GPIO.output(self.NRSTPD, 1)
     if(self.MFRC522_Init()<0):
@@ -359,7 +359,26 @@ class MFRC522:
     if len(backData) == 16:
       print ("Sector "+str(blockAddr)+" : "+str(''.join(map(hex,backData)).replace("0x"," ")),end="")
       print (" | "+''.join(map(chr,backData)))
-      
+  
+  def MFRC522_Getstr(self, blockAddr):
+    recvData = []
+    recvData.append(self.PICC_READ)
+    recvData.append(blockAddr)
+    pOut = self.CalulateCRC(recvData)
+    recvData.append(pOut[0])
+    recvData.append(pOut[1])
+    (status, backData, backLen) = self.MFRC522_ToCard(self.PCD_TRANSCEIVE, recvData)
+    if not(status == self.MI_OK):
+      print ("Error while reading!")
+    i = 0
+    if len(backData) == 16:
+      ##print ("Sector "+str(blockAddr)+" : "+str(''.join(map(hex,backData)).replace("0x"," ")),end="")
+      ##print (" | "+''.join(map(chr,backData)))
+      returnString = ''.join(map(chr,backData))
+      print(returnString)
+      return returnString
+
+
   def MFRC522_Write(self, blockAddr, writeData):
     buff = []
     buff.append(self.PICC_WRITE)

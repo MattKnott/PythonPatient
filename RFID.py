@@ -10,6 +10,8 @@ import MFRC522
 import sys
 import os
 
+GPIO.setmode(GPIO.BCM)
+
 # Create an object of the class MFRC522
 mfrc = MFRC522.MFRC522()
 
